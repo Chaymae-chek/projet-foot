@@ -1,0 +1,29 @@
+version: 2
+
+models:
+  - name: mart_matchs
+    description: "Un match par ligne, avec noms d'équipes lisibles et vainqueur calculé"
+    columns:
+      - name: fixture_id
+        tests:
+          - unique
+          - not_null
+      - name: vainqueur
+        tests:
+          - not_null
+
+  - name: mart_stats_equipe
+    description: "Statistiques de jeu agrégées par équipe (moyennes sur tous les matchs avec stats)"
+    columns:
+      - name: equipe_nom
+        tests:
+          - unique
+          - not_null
+
+  - name: mart_matchs_detailles
+    description: "Un match par ligne avec les stats des deux équipes côte à côte (pour la Vue Match du dashboard)"
+    columns:
+      - name: fixture_id
+        tests:
+          - unique
+          - not_null

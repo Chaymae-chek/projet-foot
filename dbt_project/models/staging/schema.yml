@@ -1,0 +1,58 @@
+version: 2
+
+# ============================================================
+# SOURCES : déclare à dbt où sont tes tables brutes (créées par
+# charger_json_vers_db.py, pas par dbt lui-même)
+# ============================================================
+sources:
+  - name: public
+    schema: public
+    description: "Tables brutes alimentées par le scraper/client API et charger_json_vers_db.py"
+    tables:
+      - name: equipes
+      - name: matchs
+      - name: stats_match
+
+# ============================================================
+# TESTS sur la couche staging
+# ============================================================
+models:
+  - name: stg_equipes
+    description: "Une ligne par équipe, avec un nom lisible"
+    columns:
+      - name: equipe_id
+        tests:
+          - unique
+          - not_null
+      - name: equipe_nom
+        tests:
+          - not_null
+
+  - name: stg_matchs
+    description: "Matchs terminés uniquement (statut FT)"
+    columns:
+      - name: fixture_id
+        tests:
+          - unique
+          - not_null
+      - name: statut
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['FT']
+      - name: equipe_domicile_id
+        tests:
+          - not_null
+      - name: equipe_exterieur_id
+        tests:
+          - not_null
+
+  - name: stg_stats_match
+    description: "Statistiques de jeu, une ligne par équipe et par match"
+    columns:
+      - name: fixture_id
+        tests:
+          - not_null
+      - name: equipe_id
+        tests:
+          - not_null

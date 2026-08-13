@@ -1,0 +1,19 @@
+name: 'football_analytics'
+version: '1.0.0'
+config-version: 2
+
+# Doit correspondre au nom du profil dans ~/.dbt/profiles.yml
+profile: 'football_analytics'
+
+model-paths: ["models"]
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  football_analytics:
+    staging:
+      +materialized: view   # les vues staging sont légères, recalculées à chaque lecture
+    marts:
+      +materialized: table  # les marts sont matérialisés en vraies tables (plus rapide à lire pour le dashboard)

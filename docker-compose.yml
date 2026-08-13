@@ -1,0 +1,53 @@
+# docker-compose.yml (à la racine de projet-foot/)
+#
+# Orchestre les 3 conteneurs du projet ensemble, sur un même réseau Docker
+# privé -- à l'intérieur de ce réseau, chaque service peut joindre les
+# autres par leur NOM DE SERVICE (ex: "postgres") plutôt que "localhost".
+# C'est pour ça que api_client.py et app.py utilisent DB_HOST=postgres ici.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: football_postgres
+    environment:
+      POSTGRES_USER: football
+      POSTGRES_PASSWORD: football_pwd
+      POSTGRES_DB: football_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init_schema.sql:/docker-entrypoint-initdb.d/init_schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U football -d football_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  scraper:
+    build: ./scraper
+    container_name: football_scraper
+    environment:
+      API_FOOTBALL_KEY: ${API_FOOTBALL_KEY}   # lu depuis le fichier .env (voir plus bas)
+      DB_HOST: postgres
+    volumes:
+      - ./scraper:/app   # les fichiers JSON générés apparaissent aussi sur ta machine
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  dashboard:
+    build: ./dashboard
+    container_name: football_dashboard
+    environment:
+      DB_HOST: postgres
+    ports:
+      - "8060:8060"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+    external: true
+    name: db_pgdata

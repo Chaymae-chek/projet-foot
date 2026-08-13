@@ -1,0 +1,128 @@
+# .github/workflows/ci.yml
+#
+# Pipeline CI/CD -- se déclenche à chaque push et pull request.
+#
+# 3 jobs indépendants (sauf build-docker qui attend les 2 autres) :
+#   1. test-scraper : lance les tests pytest du scraper (aucune base
+#      de données nécessaire -- les tests sont 100% hors-ligne)
+#   2. test-dbt : monte un PostgreSQL temporaire, crée le schéma vide,
+#      lance dbt run + dbt test dessus (valide que le SQL est correct,
+#      pas les vraies données -- voir note plus bas)
+#   3. build-docker : construit les images Docker du scraper et du
+#      dashboard, uniquement si les deux jobs de tests précédents
+#      ont réussi, et uniquement sur la branche main
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+
+  # ============================================================
+  # JOB 1 -- Tests pytest du scraper (parsing, sans réseau)
+  # ============================================================
+  test-scraper:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer les dépendances du scraper
+        working-directory: ./scraper
+        run: pip install -r requirements.txt
+
+      - name: Lancer les tests pytest
+        working-directory: ./scraper
+        run: pytest tests/ -v
+
+  # ============================================================
+  # JOB 2 -- dbt run + dbt test sur un PostgreSQL temporaire
+  # ============================================================
+  test-dbt:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: football
+          POSTGRES_PASSWORD: football_pwd
+          POSTGRES_DB: football_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U football"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer le client PostgreSQL
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Créer le schéma (tables vides, structure uniquement)
+        run: PGPASSWORD=football_pwd psql -h localhost -U football -d football_db -f db/init_schema.sql
+
+      - name: Installer dbt-postgres
+        run: pip install dbt-postgres
+
+      - name: Configurer le profil dbt
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << 'EOF'
+          football_analytics:
+            target: dev
+            outputs:
+              dev:
+                type: postgres
+                host: localhost
+                user: football
+                password: football_pwd
+                port: 5432
+                dbname: football_db
+                schema: analytics
+                threads: 4
+          EOF
+
+      - name: dbt run (valide que le SQL est correct)
+        working-directory: ./dbt_project
+        run: dbt run
+
+      - name: dbt test (valide les contraintes de qualité)
+        working-directory: ./dbt_project
+        run: dbt test
+
+  # ============================================================
+  # JOB 3 -- Build des images Docker (uniquement si les tests passent)
+  # ============================================================
+  build-docker:
+    needs: [test-scraper, test-dbt]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Build l'image du scraper
+        run: docker build -t football-scraper:latest ./scraper
+
+      - name: Build l'image du dashboard
+        run: docker build -t football-dashboard:latest ./dashboard

@@ -1,0 +1,22 @@
+# .gitignore
+
+# Secrets -- ne jamais committer ta vraie clé API
+.env
+
+# Données générées (trop volumineuses / changent à chaque run)
+*.json
+!package.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# dbt
+dbt_project/target/
+dbt_project/dbt_packages/
+dbt_project/logs/
+
+# Docker
+pgdata/
