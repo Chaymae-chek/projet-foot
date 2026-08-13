@@ -116,7 +116,7 @@ La qualité des données est contrôlée avec des tests Pytest et des tests dbt.
 
 Le projet comprend actuellement :
 
-* 11 tests Pytest
+* 23 tests Pytest
 * 17 tests dbt
 
 Les tests sont exécutés automatiquement via GitHub Actions.
